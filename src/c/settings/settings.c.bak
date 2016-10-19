@@ -1,0 +1,400 @@
+#include <pebble.h>
+#include <utils/pebble-assist.h>
+#include <utils/bitmap-loader.h>
+#include "../rctimer.h"
+#include "../icons.h"
+#include "../about.h"
+#include "settings.h"
+#include "win-duration.h"
+
+// Sections setup
+#define NUM_MENU_SECTIONS         4
+#define MENU_SECTION_PRE_RACE     0
+#define MENU_SECTION_RACE         1
+#define MENU_SECTION_AFTER_RACE   2
+#define MENU_SECTION_ABOUT        3
+
+// Pre Race Settings menu
+#define NUM_SETTINGS_PRE_RACE_ITEMS     3
+#define MENU_SETTINGS_PRE_RACE_DURATION 0
+#define MENU_SETTINGS_PRE_RACE_INTERVAL 1
+#define MENU_SETTINGS_PRE_RACE_VIBE     2
+
+// Race Settings menu
+#define NUM_SETTINGS_RACE_ITEMS     4
+#define MENU_SETTINGS_RACE_DURATION 0
+#define MENU_SETTINGS_RACE_INTERVAL 1
+#define MENU_SETTINGS_RACE_PRE_WARN 2
+#define MENU_SETTINGS_RACE_VIBE     3
+
+// After Race Settings menu
+#define NUM_SETTINGS_AFTER_RACE_ITEMS     1
+#define MENU_SETTINGS_AFTER_RACE_INTERVAL 0
+
+// About Settings
+#define NUM_SETTINGS_ABOUT_ITEMS      2
+#define MENU_SETTINGS_ABOUT_VERSION   0
+#define MENU_SETTINGS_ABOUT_CREDITS   1
+
+
+static Window *window;
+static MenuLayer *s_menu_layer;
+
+static void pre_race_duration_callback(uint32_t duration);
+static void pre_race_interval_callback(uint32_t duration);
+
+static void race_duration_callback(uint32_t duration);
+static void race_interval_callback(uint32_t duration);
+static void race_pre_warn_callback(uint32_t duration);
+
+static void after_race_interval_callback(uint32_t duration);
+
+// Storage
+typedef struct{
+    uint32_t    active;
+    settings_t   settings[5];
+} profile_setting_t;
+profile_setting_t profile;
+
+HEAP_CHECK;
+
+static void settings_set_default(settings_t *setting) {
+
+    *setting = (settings_t) {
+        .pre_race_duration      = 5,
+        .pre_race_interval      = 0,
+        .pre_race_vibe          = TIMER_VIBE_LONG,
+
+        .race_duration          = 300,
+        .race_interval          = 60,
+        .race_pre_warning       = 15,
+        .race_vibe              = TIMER_VIBE_TRIPLE,
+
+        .after_race_interval    = 60
+    };
+}
+
+static void settings_default_all(void)
+{
+    profile.active = 0;
+    settings_set_default(&profile.settings[0]);
+    settings_set_default(&profile.settings[1]);
+    settings_set_default(&profile.settings[2]);
+    settings_set_default(&profile.settings[3]);
+    settings_set_default(&profile.settings[4]);
+}
+
+static void settings_load(void) {
+    uint32_t current_version = persist_read_int(SETTINGS_VERSION_KEY);
+
+    DEBUG("LOAD Settings: %d", (int)current_version);
+
+    if (0 == current_version)
+    {
+        old_settings_t old_settings;
+        settings_default_all();
+        if (0 < persist_read_data(OLD_SETTINGS_KEY, &old_settings, sizeof(old_settings_t)))
+        {
+            // old setting exists!
+
+            settings_t *p;
+
+            persist_delete(OLD_SETTINGS_KEY);
+
+
+            // copy from old to new format into profile0
+            profile.active = 0;
+            p = &profile.settings[profile.active];
+            p->pre_race_duration = old_settings.pre_race_duration;
+            p->pre_race_interval = old_settings.pre_race_interval;
+            p->pre_race_vibe = old_settings.pre_race_vibe;
+            p->race_duration = old_settings.race_duration;
+            p->race_interval = old_settings.race_interval;
+            p->race_pre_warning = old_settings.race_pre_warning;
+            p->race_vibe = old_settings.race_vibe;
+            p->after_race_interval = old_settings.after_race_interval;
+        }
+    }
+
+    if (persist_exists(SETTINGS_KEY))
+    {
+        persist_read_data(SETTINGS_KEY,&profile, sizeof(profile_setting_t));
+    }
+    else
+    {
+        // First time. Set default and save
+        settings_default_all();
+    }
+}
+
+settings_t* settings() {
+  return &profile.settings[profile.active];
+}
+
+static void settings_save(void) {
+  int res = persist_write_data(SETTINGS_KEY, &profile, sizeof(profile_setting_t));
+  if (res < 0) {
+    LOG("Settings save failed: %d", res);
+  }
+  persist_write_int(SETTINGS_VERSION_KEY, SETTINGS_VERSION_CURRENT);
+}
+
+static uint16_t menu_get_num_sections_callback(MenuLayer *menu_layer, void *data) {
+  return NUM_MENU_SECTIONS;
+}
+
+static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+  switch (section_index) {
+    case MENU_SECTION_PRE_RACE:
+      return NUM_SETTINGS_PRE_RACE_ITEMS;
+    case MENU_SECTION_RACE:
+      return NUM_SETTINGS_RACE_ITEMS;
+    case MENU_SECTION_AFTER_RACE:
+      return NUM_SETTINGS_AFTER_RACE_ITEMS;
+    case MENU_SECTION_ABOUT:
+      return NUM_SETTINGS_ABOUT_ITEMS;
+    default:
+      return 0;
+  }
+}
+
+static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+  return MENU_CELL_BASIC_HEADER_HEIGHT;
+}
+
+static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+  // Determine which section we're working with
+  switch (section_index) {
+    case MENU_SECTION_PRE_RACE:
+      // Draw title text in the section header
+      menu_cell_basic_header_draw(ctx, cell_layer, "Pre Race Settings");
+      break;
+    case MENU_SECTION_RACE:
+      // Draw title text in the section header
+      menu_cell_basic_header_draw(ctx, cell_layer, "Race Settings");
+      break;
+    case MENU_SECTION_AFTER_RACE:
+      // Draw title text in the section header
+      menu_cell_basic_header_draw(ctx, cell_layer, "After Race Settings");
+      break;
+    case MENU_SECTION_ABOUT:
+      // Draw title text in the section header
+      menu_cell_basic_header_draw(ctx, cell_layer, "About RC-Timer");
+      break;
+  }
+}
+
+static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
+  char str[16] = "";
+
+  // Determine which section we're going to draw in
+  switch (cell_index->section) {
+    case MENU_SECTION_PRE_RACE:
+      // Use the row to specify which item we'll draw
+      switch (cell_index->row) {
+        case MENU_SETTINGS_PRE_RACE_DURATION:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->pre_race_duration, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Duration", str, NULL);
+          break;
+        case MENU_SETTINGS_PRE_RACE_INTERVAL:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->pre_race_interval, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Vibe Interval", str, NULL);
+          break;
+        case MENU_SETTINGS_PRE_RACE_VIBE:
+          // This is a basic menu item with a title and subtitle
+          snprintf(str,sizeof(str),"%s",timer_vibe_str(settings()->pre_race_vibe,true));
+          menu_cell_basic_draw(ctx, cell_layer, "Start Race Vibe", str, NULL);
+          break;
+      }
+      break;
+    case MENU_SECTION_RACE:
+      // Use the row to specify which item we'll draw
+      switch (cell_index->row) {
+        case MENU_SETTINGS_RACE_DURATION:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->race_duration, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Duration", str, NULL);
+          break;
+        case MENU_SETTINGS_RACE_INTERVAL:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->race_interval, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Vibe Interval", str, NULL);
+          break;
+        case MENU_SETTINGS_RACE_PRE_WARN:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->race_pre_warning, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Pre Warning", str, NULL);
+          break;
+        case MENU_SETTINGS_RACE_VIBE:
+          // This is a basic menu item with a title and subtitle
+          snprintf(str,sizeof(str),"%s",timer_vibe_str(settings()->race_vibe,true));
+          menu_cell_basic_draw(ctx, cell_layer, "End Of Race Vibe", str, NULL);
+          break;
+      }
+      break;
+    case MENU_SECTION_AFTER_RACE:
+      // Use the row to specify which item we'll draw
+      switch (cell_index->row) {
+        case MENU_SETTINGS_AFTER_RACE_INTERVAL:
+          // This is a basic menu item with a title and subtitle
+          timer_time_str(settings()->after_race_interval, str, sizeof(str));
+          menu_cell_basic_draw(ctx, cell_layer, "Vibe Interval", str, NULL);
+          break;
+      }
+      break;
+    case MENU_SECTION_ABOUT:
+      // Use the row to specify which item we'll draw
+      switch (cell_index->row) {
+        case MENU_SETTINGS_ABOUT_VERSION:
+          menu_cell_basic_draw(ctx, cell_layer, "Version", RCTIMER_VERSION, NULL);
+          break;
+        case MENU_SETTINGS_ABOUT_CREDITS:
+          menu_cell_title_draw(ctx, cell_layer, "Credits");
+          break;
+      }
+      break;
+  }
+}
+
+static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+  // Use the row to specify which item will receive the select action
+  switch (cell_index->section) {
+    case MENU_SECTION_PRE_RACE:
+      switch (cell_index->row) {
+        case MENU_SETTINGS_PRE_RACE_DURATION:
+          win_duration_show(settings()->pre_race_duration, pre_race_duration_callback, false);
+          break;
+        case MENU_SETTINGS_PRE_RACE_INTERVAL:
+          win_duration_show(settings()->pre_race_interval, pre_race_interval_callback, false);
+          break;
+        case MENU_SETTINGS_PRE_RACE_VIBE:
+          settings()->pre_race_vibe = (settings()->pre_race_vibe + 1) % TIMER_VIBE_MAX;
+          // After changing the item, mark the layer to have it updated
+          layer_mark_dirty(menu_layer_get_layer(menu_layer));
+          break;
+      }
+      break;
+    case MENU_SECTION_RACE:
+      switch (cell_index->row) {
+        case MENU_SETTINGS_RACE_DURATION:
+          win_duration_show(settings()->race_duration, race_duration_callback, true);
+          break;
+        case MENU_SETTINGS_RACE_INTERVAL:
+          win_duration_show(settings()->race_interval, race_interval_callback, true);
+          break;
+        case MENU_SETTINGS_RACE_PRE_WARN:
+          win_duration_show(settings()->race_pre_warning, race_pre_warn_callback, false);
+          break;
+        case MENU_SETTINGS_RACE_VIBE:
+          settings()->race_vibe = (settings()->race_vibe + 1) % TIMER_VIBE_MAX;
+          // After changing the item, mark the layer to have it updated
+          layer_mark_dirty(menu_layer_get_layer(menu_layer));
+          break;
+      }
+      break;
+    case MENU_SECTION_AFTER_RACE:
+      switch (cell_index->row) {
+        case MENU_SETTINGS_AFTER_RACE_INTERVAL:
+          win_duration_show(settings()->after_race_interval, after_race_interval_callback, true);
+          break;
+      }
+      break;
+    case MENU_SECTION_ABOUT:
+      switch (cell_index->row) {
+        case MENU_SETTINGS_ABOUT_CREDITS:
+          about_window_push();
+          break;
+      }
+      break;
+  }
+}
+
+
+//  window_stack_pop(true);
+static void window_load(Window *window) {
+
+  // Now we prepare to initialize the menu layer
+  Layer *window_layer = window_get_root_layer(window);
+  GRect bounds = layer_get_frame(window_layer);
+
+  // Create the menu layer
+  s_menu_layer = menu_layer_create(bounds);
+  menu_layer_set_callbacks(s_menu_layer, NULL, (MenuLayerCallbacks){
+    .get_num_sections = menu_get_num_sections_callback,
+    .get_num_rows = menu_get_num_rows_callback,
+    .get_header_height = menu_get_header_height_callback,
+    .draw_header = menu_draw_header_callback,
+    .draw_row = menu_draw_row_callback,
+    .select_click = menu_select_callback,
+  });
+
+  // Bind the menu layer's click config provider to the window for interactivity
+  menu_layer_set_click_config_onto_window(s_menu_layer, window);
+#if !defined(PBL_PLATFORM_APLITE)
+  menu_layer_set_highlight_colors(s_menu_layer, GColorYellow, GColorBlack);
+#endif
+  layer_add_child(window_layer, menu_layer_get_layer(s_menu_layer));
+}
+
+static void window_unload(Window *window) {
+  // Destroy the menu layer
+  menu_layer_destroy(s_menu_layer);
+}
+
+
+void settings_push_window(){
+  window_stack_push(window,true);
+}
+
+void settings_init()
+{
+  HEAP_CHECK_START();
+
+  settings_load();
+  win_duration_init();
+  about_init();
+
+  window = window_create();
+  window_set_window_handlers(window, (WindowHandlers) {
+    .load = window_load,
+    .unload = window_unload,
+  });
+  HEAP_CHECK_STOP();
+}
+
+void settings_deinit(void) {
+  HEAP_CHECK_START();
+  about_deinit();
+  win_duration_deinit();
+  settings_save();
+  window_destroy(window);
+  HEAP_CHECK_STOP();
+}
+
+
+static void pre_race_duration_callback(uint32_t duration) {
+  settings()->pre_race_duration = duration;
+}
+
+static void pre_race_interval_callback(uint32_t duration) {
+  settings()->pre_race_interval = duration;
+}
+
+static void race_duration_callback(uint32_t duration) {
+  settings()->race_duration = duration;
+}
+
+static void race_interval_callback(uint32_t duration) {
+  settings()->race_interval = duration;
+}
+
+static void race_pre_warn_callback(uint32_t duration) {
+  settings()->race_pre_warning = duration;
+}
+
+static void after_race_interval_callback(uint32_t duration) {
+  settings()->after_race_interval = duration;
+}
+

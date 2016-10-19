@@ -1,0 +1,33 @@
+#pragma once
+
+#include "timer.h"
+
+#define SETTINGS_VERSION_CURRENT 0
+typedef enum rctimer_mode_t 
+{
+  RACETIMER_MODE,
+  LAPTIMER_MODE
+}rctimer_mode_t;
+
+typedef struct {
+  rctimer_mode_t  rctimer_mode;              // if 0 start racetimer othervise run laptimer  
+  uint32_t        pre_race_duration; // timer duration before racetimer starts
+  uint32_t        pre_race_interval;
+  TimerVibration  pre_race_end_vibe;
+
+  uint32_t        race_duration;    // race timer duration
+  uint32_t        race_interval;
+  uint32_t        race_eor_warning;
+  TimerVibration  race_end_vibe;
+
+  uint32_t        after_race_interval;
+
+} Settings;
+
+
+typedef void (*SettingsCallback)(void);
+
+Settings* settings();
+void settings_init(void);
+void settings_deinit(void);
+void settings_push_window(SettingsCallback callback);

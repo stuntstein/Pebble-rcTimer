@@ -1,0 +1,39 @@
+{
+  "name": "rcTimer",
+  "author": "StuntStein",
+  "version": "1.2.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "utils": "file:///mnt/hgfs/pstein/Documents/private/pebble/utils"
+  },
+  "pebble": {
+    "displayName": "rcTimer",
+    "uuid": "3b70ed7f-53c6-4abf-87f8-00f167db9649",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "png",
+          "name": "ICONS",
+          "file": "rctimer_icons.png"
+        }
+      ]
+    }
+  }
+}
