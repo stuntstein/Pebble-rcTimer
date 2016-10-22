@@ -1,3 +1,3 @@
 #pragma once
-#define RCTIMER_VERSION "1.20"
+#define RCTIMER_VERSION "1.30"
 

@@ -36,7 +36,7 @@ src/timer.c
 //#include "settings.h"
 //#include "windows/win-vibrate.h"
 
-#define TIMER_RESOLUTION 10  // 0.01 sec resolution 1sec * 100  
+#define TIMER_RESOLUTION 10  // 0.01 sec resolution 1sec * 100
 
 typedef enum {
   TIMER_TYPE_STOPWATCH = 0,
@@ -71,7 +71,7 @@ static void timer_callback_done(sTimer* timer);
 
 static void timer_tick(void* context)
 {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   sTimer* timer = (sTimer*)context;
   timer->timer = NULL;
   switch (timer->type) {
@@ -86,16 +86,16 @@ static void timer_tick(void* context)
         return;
       }
   }
-  
+
   timer_schedule_tick(timer);
   timer_callback_update(timer);
-  
+
   // vibration interval
   if ( timer->current_time % timer->vib_interval == 0)
   {
     vibes_short_pulse();
-    DEBUG("VIB");    
-  }  
+    DEBUG("VIB");
+  }
 
 
   // EOR warning
@@ -105,17 +105,17 @@ static void timer_tick(void* context)
     {
       // vibrate every 1sec
       if ( timer->current_time % TIMER_RESOLUTION  == 0)
-      { 
+      {
         vibes_short_pulse();
         DEBUG("VIB");
-      }  
+      }
     }
   }
 }
 
 
 static void timer_finish(sTimer* timer) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   timer->status = TIMER_STATUS_DONE;
   timer_cancel_tick(timer);
   timer_completed_action(timer);
@@ -125,12 +125,12 @@ static void timer_finish(sTimer* timer) {
 
 
 static void timer_schedule_tick(sTimer* timer) {
-  DEBUG("%s\n",__func__);    
-  timer->timer = app_timer_register((100-6), timer_tick, (void*)timer);  // 0.1 timer
+  DEBUG("%s\n",__func__);
+  timer->timer = app_timer_register(100, timer_tick, (void*)timer);  // 0.1 timer
 }
 
 static void timer_cancel_tick(sTimer* timer) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   if (timer->timer) {
     app_timer_cancel(timer->timer);
     timer->timer = NULL;
@@ -138,7 +138,7 @@ static void timer_cancel_tick(sTimer* timer) {
 }
 
 static void timer_completed_action(sTimer* timer) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   switch (timer->expired_vibration) {
     case TIMER_VIBE_NONE:
       // Do nothing!
@@ -175,7 +175,7 @@ static void timer_completed_action(sTimer* timer) {
 
 static void timer_callback_update(sTimer* timer)
 {
-  DEBUG("%s %X\n",__func__, (unsigned int)timer->update_cb.handler);    
+  DEBUG("%s %X\n",__func__, (unsigned int)timer->update_cb.handler);
   if (timer->update_cb.handler != NULL )
   {
     timer->update_cb.handler(timer->update_cb.context);
@@ -184,7 +184,7 @@ static void timer_callback_update(sTimer* timer)
 
 static void timer_callback_done(sTimer* timer)
 {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   if (timer->expired_cb.handler != NULL )
   {
     timer->expired_cb.handler(timer->expired_cb.context);
@@ -196,7 +196,7 @@ static void timer_callback_done(sTimer* timer)
   Timer creator
 ******************************************************************************/
 Timer timer_create(void) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   sTimer* t = malloc(sizeof(sTimer));
   memset((void*)t,sizeof(sTimer),0);
   return (Timer)t;
@@ -206,8 +206,8 @@ void timer_destroy(Timer timer)
 {
   if(timer != NULL)
   {
-    DEBUG("%s\n",__func__);    
-  
+    DEBUG("%s\n",__func__);
+
     sTimer *t = (sTimer*)timer;
     if (t->timer) {
       app_timer_cancel(t->timer);
@@ -225,7 +225,7 @@ void timer_start(Timer timer)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer *t = (sTimer*)timer;
   timer_cancel_tick(t);
@@ -239,10 +239,10 @@ void timer_pause(Timer timer)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer *t = (sTimer*)timer;
-  timer_cancel_tick(t);  
+  timer_cancel_tick(t);
   t->status = TIMER_STATUS_PAUSED;
 }
 
@@ -251,7 +251,7 @@ void timer_resume(Timer timer)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer *t = (sTimer*)timer;
   if(t->current_time == 0)
@@ -260,10 +260,10 @@ void timer_resume(Timer timer)
     timer_cancel_tick(t);
   }
   else
-  {  
+  {
     t->status = TIMER_STATUS_RUNNING;
     timer_schedule_tick(t);
-  }  
+  }
 }
 
 void timer_stop(Timer timer)
@@ -271,7 +271,7 @@ void timer_stop(Timer timer)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   timer_cancel_tick(t);
@@ -283,11 +283,11 @@ void timer_reset(Timer timer)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   timer_stop(timer);
   memset(timer,0,sizeof(sTimer));
-  return;  
+  return;
 }
 
 /******************************************************************************
@@ -298,7 +298,7 @@ void timer_set_length(Timer timer, uint32_t length)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
@@ -323,7 +323,7 @@ TimerStatus timer_get_status(Timer timer)
   if(timer==NULL)
     return TIMER_STATUS_STOPPED;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   return ((sTimer*)timer)->status;
 }
 
@@ -335,8 +335,8 @@ uint32_t timer_get_time(Timer timer)
   if(timer==NULL)
     return 0;
 
-  DEBUG("%s\n",__func__);    
-  return ((sTimer*)timer)->current_time;  
+  DEBUG("%s\n",__func__);
+  return ((sTimer*)timer)->current_time;
 }
 /******************************************************************************
   Set timer expire warning length
@@ -346,13 +346,13 @@ void timer_set_before_expire_warning_length(Timer timer, uint32_t length)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
   {
     t->before_expired_length = length * TIMER_RESOLUTION; // Counter at 10 ms resolution
-  }  
+  }
 }
 
 /******************************************************************************
@@ -363,13 +363,13 @@ void timer_set_interval_vibration(Timer timer, uint32_t interval)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
   {
     t->vib_interval = t->vib_interval_counter = interval * TIMER_RESOLUTION; // counter at 10 ms resolution
-  }    
+  }
 }
 
 void timer_set_expired_vibration(Timer timer, TimerVibration vib)
@@ -377,13 +377,13 @@ void timer_set_expired_vibration(Timer timer, TimerVibration vib)
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
   {
     t->expired_vibration = vib;
-  }    
+  }
 }
 
 /******************************************************************************
@@ -394,14 +394,14 @@ void timer_register_expired_cb(Timer timer, TimerCbHandler callback, void *conte
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
   {
     t->expired_cb.handler = callback;
     t->expired_cb.context = context;
-  }      
+  }
 }
 
 void timer_register_update_cb(Timer timer, TimerCbHandler callback, void *context)
@@ -409,14 +409,14 @@ void timer_register_update_cb(Timer timer, TimerCbHandler callback, void *contex
   if(timer==NULL)
     return;
 
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   sTimer* t = (sTimer*)timer;
   if(t->status == TIMER_STATUS_STOPPED)
   {
     t->update_cb.handler = callback;
     t->update_cb.context = context;
-  }        
+  }
 }
 
 
@@ -443,7 +443,7 @@ char* timer_vibe_str(TimerVibration vibe, bool shortStr) {
   return "";
 }
 
-void timer_time_str(uint32_t timer_time, char* str, int str_len) { 
+void timer_time_str(uint32_t timer_time, char* str, int str_len) {
 
   int seconds = timer_time % 60;
   int minutes = timer_time / 60;
@@ -460,7 +460,7 @@ void timer_time_str_ms(uint32_t timer_time, bool ShowMinutes, char* str, int str
   if (ShowMinutes)
     snprintf(str, str_len, "%2d:%02d.%01d", minutes, seconds, millisec);
   else
-    snprintf(str, str_len, "%2d.%01d", seconds, millisec);     
+    snprintf(str, str_len, "%2d.%01d", seconds, millisec);
 }
 
 

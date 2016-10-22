@@ -40,7 +40,7 @@ static const char *EVENTS_STRING[] = {
   x(STATE_PAUSED)           \
   x(STATE_PRE_RACE_RUNNING) \
   x(STATE_RACE_RUNNING)     \
-  x(STATE_AFTER_RACE_RUNNING) 
+  x(STATE_AFTER_RACE_RUNNING)
 
 typedef enum
 {
@@ -51,7 +51,7 @@ static const char *STATES_STRING[] = {
     STATES(GENERATE_STRING)
 };
 
-  
+
 /*
 typedef enum
 {
@@ -105,6 +105,7 @@ static racetimer_state prev_state = STATE_STOPPED;
 static racetimer_state state = STATE_STOPPED;
 
 static void racetimer_event_handler(racetimer_event event);
+static void racetimer_event_handler_with_clicks(racetimer_event event, uint8_t clicks);
 
 HEAP_CHECK
 
@@ -122,7 +123,7 @@ void deinit_statusbar(void)
 }
 
 static void pre_race_update_cb(void* context) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   timer_time_str_ms(timer_get_time(rctimer), false, pretime_str,sizeof(pretime_str));
   s_progress = timer_get_time(rctimer);
 
@@ -133,47 +134,39 @@ static void pre_race_update_cb(void* context) {
 }
 
 static void race_update_cb(void* context) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
 
   timer_time_str_ms(timer_get_time(rctimer), true, time_str,sizeof(time_str));
   text_layer_set_text(timer_layer, time_str);
-  
+
   s_progress = s_progress_size - timer_get_time(rctimer);
 
-  progress_layer_set_progress(s_progress_layer, (s_progress*100)/s_progress_size);    
+  progress_layer_set_progress(s_progress_layer, (s_progress*100)/s_progress_size);
   DEBUG("timer:%s %d",time_str,s_progress);
 }
 
 static void after_race_update_cb(void* context) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   timer_time_str_ms(timer_get_time(rctimer), true, time_str,sizeof(time_str));
   text_layer_set_text(timer_layer, time_str);
-  
+
   DEBUG("timer:%s %d",time_str,s_progress);
 }
 
 static void timer_expired_cb(void* context) {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   racetimer_event_handler(EVENT_TIMER_EXPIRED);
 }
 
 
 static void up_repeat_click_handler(ClickRecognizerRef recognizer, void *context)
 {
-  settings_set_active_profile((settings_get_active_profile() + 1));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "set profile %d", settings_get_active_profile());
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "clicks %d", click_number_of_clicks_counted(recognizer));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "repeat click %d", click_recognizer_is_repeating(recognizer));
-
-  racetimer_event_handler(EVENT_CLICK_UP);
+  racetimer_event_handler_with_clicks(EVENT_CLICK_UP, (settings_get_active_profile() + 1));
 }
 
 static void up_click_handler(ClickRecognizerRef recognizer, void *context)
 {
-  settings_set_active_profile(click_number_of_clicks_counted(recognizer)-1);
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "set profile %d", settings_get_active_profile());
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "clicks2 %d", click_number_of_clicks_counted(recognizer));
-  racetimer_event_handler(EVENT_CLICK_UP);
+  racetimer_event_handler_with_clicks(EVENT_CLICK_UP, (click_number_of_clicks_counted(recognizer)-1));
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context)
@@ -226,26 +219,26 @@ static void SetActionBarIcons(racetimer_icons icons)
       action_bar_layer_set_icon(action_bar,   BUTTON_ID_SELECT, s_icon_settings);
       action_bar_layer_set_icon(action_bar,   BUTTON_ID_DOWN, s_icon_start);
     }
-    break;    
+    break;
     case ICONS_RUNNING:
       action_bar_layer_set_icon(action_bar, BUTTON_ID_UP, s_icon_stop);
       action_bar_layer_clear_icon(action_bar, BUTTON_ID_SELECT);
       action_bar_layer_set_icon(action_bar,   BUTTON_ID_DOWN,   s_icon_pause);
-    break;    
+    break;
     case ICONS_PAUSED:
       action_bar_layer_set_icon(action_bar,   BUTTON_ID_UP,     s_icon_stop);
       action_bar_layer_clear_icon(action_bar, BUTTON_ID_SELECT);
       action_bar_layer_set_icon(action_bar,   BUTTON_ID_DOWN,   s_icon_start);
-    break;    
+    break;
     default:
-    break;    
+    break;
   }
 }
 
 static void racetimer_reset(void)
 {
-  DEBUG("%s\n",__func__);    
-  timer_reset(rctimer);  
+  DEBUG("%s\n",__func__);
+  timer_reset(rctimer);
 
   progress_layer_set_foreground_color(s_progress_layer, PROGRESS_FG_COLOR_PRETIMER);
   progress_layer_set_progress(s_progress_layer, 100);
@@ -260,34 +253,34 @@ static void racetimer_reset(void)
 
 void racetimer_pause(void)
 {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   timer_pause(rctimer);
   SetActionBarIcons(ICONS_PAUSED);
 }
 
 static void racetimer_start_pre_race(void)
 {
-  DEBUG("%s\n",__func__);    
-  timer_reset(rctimer);  
+  DEBUG("%s\n",__func__);
+  timer_reset(rctimer);
   timer_set_length(rctimer, settings()->pre_race_duration);
   timer_set_interval_vibration(rctimer, settings()->pre_race_interval);
-  timer_set_expired_vibration(rctimer, settings()->pre_race_over_vibe); 
+  timer_set_expired_vibration(rctimer, settings()->pre_race_over_vibe);
   timer_register_update_cb(rctimer, pre_race_update_cb, NULL);
   timer_register_expired_cb(rctimer, timer_expired_cb, NULL);
 
   s_progress_size = settings()->pre_race_duration*10;
 
-  timer_start(rctimer);  
+  timer_start(rctimer);
   SetActionBarIcons(ICONS_RUNNING);
 }
 
 static void racetimer_start_race(void)
 {
-  DEBUG("%s\n",__func__);    
-  timer_reset(rctimer);  
+  DEBUG("%s\n",__func__);
+  timer_reset(rctimer);
   timer_set_length(rctimer, settings()->race_duration);
   timer_set_interval_vibration(rctimer, settings()->race_interval);
-  timer_set_expired_vibration(rctimer, settings()->race_over_vibe); 
+  timer_set_expired_vibration(rctimer, settings()->race_over_vibe);
   timer_set_before_expire_warning_length(rctimer,settings()->race_over_warning);
   timer_register_update_cb(rctimer, race_update_cb,NULL);
   timer_register_expired_cb(rctimer, timer_expired_cb, NULL);
@@ -296,25 +289,25 @@ static void racetimer_start_race(void)
   progress_layer_set_progress(s_progress_layer, s_progress);
   progress_layer_set_foreground_color(s_progress_layer, PROGRESS_FG_COLOR);
 
-  timer_start(rctimer);  
+  timer_start(rctimer);
   SetActionBarIcons(ICONS_RUNNING);
 }
 
 static void racetimer_start_after_race(void)
 {
-  DEBUG("%s\n",__func__);    
-  timer_reset(rctimer);  
+  DEBUG("%s\n",__func__);
+  timer_reset(rctimer);
   timer_set_length(rctimer, 0);
   timer_set_interval_vibration(rctimer, settings()->after_race_interval);
   timer_register_update_cb(rctimer, after_race_update_cb,NULL);
 
-  timer_start(rctimer);  
+  timer_start(rctimer);
   SetActionBarIcons(ICONS_RUNNING);
 }
 
 void racetimer_resume(void)
 {
-  DEBUG("%s\n",__func__);    
+  DEBUG("%s\n",__func__);
   timer_start(rctimer);
   SetActionBarIcons(ICONS_RUNNING);
 }
@@ -325,7 +318,12 @@ static void racetimer_setting_cb(void)
 }
 
 static void racetimer_event_handler(racetimer_event event)
-{  
+{
+  racetimer_event_handler_with_clicks(event, 0);
+}
+
+static void racetimer_event_handler_with_clicks(racetimer_event event, uint8_t clicks)
+{
   static uint8_t cnt=0;
   racetimer_state new_state = state;
 
@@ -342,6 +340,7 @@ static void racetimer_event_handler(racetimer_event event)
           racetimer_reset();
           break;
         case EVENT_CLICK_UP:
+          settings_set_active_profile(clicks);
           racetimer_reset();
           break;
 
@@ -350,11 +349,11 @@ static void racetimer_event_handler(racetimer_event event)
           {
             new_state = STATE_RACE_RUNNING;
             racetimer_start_race();
-          } 
+          }
           else
           {
             new_state = STATE_PRE_RACE_RUNNING;
-            racetimer_start_pre_race();            
+            racetimer_start_pre_race();
           }
           break;
         case EVENT_SETTINGS:
@@ -368,7 +367,7 @@ static void racetimer_event_handler(racetimer_event event)
       {
         case EVENT_CLICK_UP:
           // Stop
-          new_state = STATE_STOPPED;       
+          new_state = STATE_STOPPED;
           racetimer_reset();
           break;
         case EVENT_CLICK_DOWN:
@@ -389,7 +388,7 @@ static void racetimer_event_handler(racetimer_event event)
       {
         case EVENT_CLICK_UP:
           // Stop
-          new_state = STATE_STOPPED;       
+          new_state = STATE_STOPPED;
           racetimer_reset();
           break;
         case EVENT_CLICK_DOWN:
@@ -410,7 +409,7 @@ static void racetimer_event_handler(racetimer_event event)
       {
         case EVENT_CLICK_UP:
           // Stop
-          new_state = STATE_STOPPED;       
+          new_state = STATE_STOPPED;
           racetimer_reset();
           break;
         case EVENT_CLICK_DOWN:
@@ -421,13 +420,13 @@ static void racetimer_event_handler(racetimer_event event)
         default:
           break;
       }
-      break;    
+      break;
     case STATE_PAUSED:
       switch(event)
       {
         case EVENT_CLICK_UP:
           // Stop
-          new_state = STATE_STOPPED;       
+          new_state = STATE_STOPPED;
           racetimer_reset();
           break;
         case EVENT_CLICK_DOWN:
@@ -453,7 +452,7 @@ static void window_appear(Window *window) {
 
 static void window_load(Window *window) {
   HEAP_CHECK_START();
-  
+
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
 
@@ -486,15 +485,15 @@ static void window_load(Window *window) {
   text_layer_set_font(timer_layer, fonts_get_system_font(FONT_KEY_DROID_SERIF_28_BOLD));
   text_layer_set_text_alignment(timer_layer, GTextAlignmentRight);
 //text_layer_set_background_color(timer_layer,GColorYellow);
-  
+
   layer_add_child(window_layer, text_layer_get_layer(title_layer));
   layer_add_child(window_layer, text_layer_get_layer(pretimer_layer));
   layer_add_child(window_layer, text_layer_get_layer(timer_layer));
- 
+
 
   // Initialize the action bar:
   action_bar = action_bar_layer_create();
-  
+
   action_bar_layer_set_background_color(action_bar, ACTION_BAR_COLOR);
   // Associate the action bar with the window:
   action_bar_layer_add_to_window(action_bar, window);
@@ -506,10 +505,10 @@ static void window_load(Window *window) {
   s_icon_start = bitmaps_get_sub_bitmap(RESOURCE_ID_ICONS, ICON_RECT_PLAY);
   s_icon_pause = bitmaps_get_sub_bitmap(RESOURCE_ID_ICONS, ICON_RECT_PAUSE);
   s_icon_settings = bitmaps_get_sub_bitmap(RESOURCE_ID_ICONS, ICON_RECT_SETTINGS);
-  
+
   // Status bar
   init_statusbar_text_layer(window_layer);
-  
+
 // Progressbar
   s_progress_layer = progress_layer_create((GRect){
 #if defined(PBL_ROUND)
@@ -524,7 +523,7 @@ static void window_load(Window *window) {
   progress_layer_set_corner_radius(s_progress_layer, 2);
   progress_layer_set_foreground_color(s_progress_layer, PROGRESS_FG_COLOR);
   progress_layer_set_background_color(s_progress_layer, GColorBlack);
-  layer_add_child(window_layer, s_progress_layer);  
+  layer_add_child(window_layer, s_progress_layer);
 
   rctimer = timer_create();
 
@@ -539,7 +538,7 @@ static void window_unload(Window *window) {
   text_layer_destroy(pretimer_layer);
   text_layer_destroy(timer_layer);
   timer_destroy(rctimer);
-  action_bar_layer_remove_from_window(action_bar);   
+  action_bar_layer_remove_from_window(action_bar);
   action_bar_layer_destroy(action_bar);
   layer_destroy(s_progress_layer);
   HEAP_CHECK_STOP();
